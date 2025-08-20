@@ -1,33 +1,30 @@
 // server.js
 const express = require("express");
 const cors = require("cors");
-const { spawn } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 
-// --- DEBUGGING: List files in the directory ---
-const files = fs.readdirSync(__dirname);
-console.log("Files in current directory:", files);
-// ---------------------------------------------
+// --- New Detailed Debugging: List files with permissions ---
+try {
+  const ls = spawnSync("ls", ["-la", __dirname]);
+  console.log(`Directory listing with permissions:\n${ls.stdout.toString()}`);
+} catch (e) {
+  console.error("Could not run ls command:", e);
+}
+// -----------------------------------------------------------
 
 const app = express();
 
 // --- CORS + JSON ---
-// Configure CORS globally for all routes.
-// This single line handles preflight (OPTIONS) requests automatically for all routes.
 app.use(cors({ origin: true, credentials: false }));
 app.use(express.json());
-// Remove the problematic line: app.options("*", cors());
-// The above app.use(cors()) handles OPTIONS requests correctly.
 
-// --- Stockfish path resolution ---
-// 1) ENV var wins, 2) local exe, 3) PATH 'stockfish'
-const LOCAL_EXE = path.join(__dirname, "stockfish-windows-x86-64-avx2.exe");
-const STOCKFISH_PATH = process.env.STOCKFISH_PATH
-  ? process.env.STOCKFISH_PATH
-  : (fs.existsSync(LOCAL_EXE) ? LOCAL_EXE : "stockfish");
-
-console.log("Using engine at:", STOCKFISH_PATH);
+// --- Stockfish path resolution (Simplified and Forced) ---
+// We will now FORCE the app to use the local path.
+// This will give us a better error if spawning fails.
+const STOCKFISH_PATH = path.join(__dirname, "stockfish-linux");
+console.log("Forcing use of engine at:", STOCKFISH_PATH);
 
 // --- Helper: clamp elo to engine limits ---
 function clampElo(elo) {
@@ -39,6 +36,11 @@ function clampElo(elo) {
 // --- Create and prime engine ---
 function createEngine(elo = 1400) {
   const engine = spawn(STOCKFISH_PATH, [], { stdio: "pipe" });
+
+  engine.on("error", (err) => {
+    // This is now the most important error log
+    console.error("Failed to start Stockfish process. Spawn error:", err);
+  });
 
   engine.stdin.write("uci\n");
   engine.stdin.write("setoption name UCI_LimitStrength value true\n");
@@ -86,10 +88,6 @@ app.post("/best-move", (req, res) => {
       console.log("Engine:", line);
       if (line.startsWith("info")) infoLines.push(line);
 
-      if (line.startsWith("uciok")) {
-        // ready later handled by 'isready'
-      }
-
       if (line.startsWith("readyok")) {
         // Once ready, send position + go
         engine.stdin.write(`position fen ${fen}\n`);
@@ -103,9 +101,8 @@ app.post("/best-move", (req, res) => {
       }
 
       if (line.startsWith("bestmove")) {
-        // Format: "bestmove e7e6 ponder d2d4"
         const parts = line.split(/\s+/);
-        const bestmove = parts[1]; // e7e6 or e7e8q etc.
+        const bestmove = parts[1];
         clearTimeout(killTimer);
         safeRespond(200, { bestmove, info: infoLines });
       }
@@ -113,13 +110,7 @@ app.post("/best-move", (req, res) => {
   });
 
   engine.stderr?.on("data", (e) => {
-    console.error("Engine ERR:", e.toString());
-  });
-
-  engine.on("error", (err) => {
-    console.error("Spawn error:", err);
-    clearTimeout(killTimer);
-    safeRespond(500, { error: "Failed to start Stockfish", details: String(err) });
+    console.error("Engine STDERR:", e.toString());
   });
 
   engine.on("close", (code) => {
@@ -134,8 +125,7 @@ app.get("/", (_, res) => {
   res.send("✅ Chess bot API running");
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ Chess bot API running on http://localhost:${PORT}`);
-
 });
