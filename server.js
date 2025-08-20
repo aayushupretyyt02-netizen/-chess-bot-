@@ -1,6 +1,17 @@
-res.setHeader("Access-Control-Allow-Origin", "*");
-res.setHeader("Access-Control-Allow-Methods", "POST");
-res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+const express = require('express');
+const app = express();
+
+// JSON body parse karne ke liye
+app.use(express.json());
+
+// --- Global CORS middleware ---
+app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");  // ✅ ye correctly kaam karega
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    next();
+});
+
 
 const express = require("express");
 const cors = require("cors");
@@ -127,4 +138,5 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ Chess bot API running on http://localhost:${PORT}`);
 });
+
 
