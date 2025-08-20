@@ -1,3 +1,7 @@
+res.setHeader("Access-Control-Allow-Origin", "*");
+res.setHeader("Access-Control-Allow-Methods", "POST");
+res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
 const express = require("express");
 const cors = require("cors");
 const { spawn, execSync } = require("child_process");
@@ -123,3 +127,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ Chess bot API running on http://localhost:${PORT}`);
 });
+
