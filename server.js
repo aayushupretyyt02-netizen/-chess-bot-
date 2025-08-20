@@ -5,6 +5,11 @@ const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 
+// --- DEBUGGING: List files in the directory ---
+const files = fs.readdirSync(__dirname);
+console.log("Files in current directory:", files);
+// ---------------------------------------------
+
 const app = express();
 
 // --- CORS + JSON ---
@@ -132,4 +137,5 @@ app.get("/", (_, res) => {
 const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`✅ Chess bot API running on http://localhost:${PORT}`);
+
 });
