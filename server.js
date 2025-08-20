@@ -1,18 +1,9 @@
-// server.js
+// server.js (Final Version)
 const express = require("express");
 const cors = require("cors");
-const { spawn, spawnSync } = require("child_process");
+const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
-
-// --- New Detailed Debugging: List files with permissions ---
-try {
-  const ls = spawnSync("ls", ["-la", __dirname]);
-  console.log(`Directory listing with permissions:\n${ls.stdout.toString()}`);
-} catch (e) {
-  console.error("Could not run ls command:", e);
-}
-// -----------------------------------------------------------
 
 const app = express();
 
@@ -20,11 +11,11 @@ const app = express();
 app.use(cors({ origin: true, credentials: false }));
 app.use(express.json());
 
-// --- Stockfish path resolution (Simplified and Forced) ---
-// We will now FORCE the app to use the local path.
-// This will give us a better error if spawning fails.
-const STOCKFISH_PATH = path.join(__dirname, "stockfish-linux");
-console.log("Forcing use of engine at:", STOCKFISH_PATH);
+// --- Stockfish path resolution ---
+const LOCAL_EXE = path.join(__dirname, "stockfish-linux");
+const STOCKFISH_PATH = fs.existsSync(LOCAL_EXE) ? LOCAL_EXE : "stockfish";
+
+console.log("Using engine at:", STOCKFISH_PATH);
 
 // --- Helper: clamp elo to engine limits ---
 function clampElo(elo) {
@@ -38,7 +29,6 @@ function createEngine(elo = 1400) {
   const engine = spawn(STOCKFISH_PATH, [], { stdio: "pipe" });
 
   engine.on("error", (err) => {
-    // This is now the most important error log
     console.error("Failed to start Stockfish process. Spawn error:", err);
   });
 
@@ -71,25 +61,21 @@ app.post("/best-move", (req, res) => {
     try { engine.kill(); } catch (_) {}
   };
 
-  // Hard timeout so request never hangs
   const killTimer = setTimeout(() => {
     safeRespond(504, { error: "Engine timeout", info: infoLines });
-  }, Math.max(1500, Number(movetime) + 2500)); // movetime + cushion
+  }, Math.max(1500, Number(movetime) + 2500));
 
-  // Collect stdout lines
   engine.stdout.on("data", (chunk) => {
     buffer += chunk.toString();
     const lines = buffer.split(/\r?\n/);
-    buffer = lines.pop(); // last partial line stays in buffer
+    buffer = lines.pop();
 
     for (const line of lines) {
       if (!line.trim()) continue;
-      // Debug log
       console.log("Engine:", line);
       if (line.startsWith("info")) infoLines.push(line);
 
       if (line.startsWith("readyok")) {
-        // Once ready, send position + go
         engine.stdin.write(`position fen ${fen}\n`);
         if (nodes) {
           engine.stdin.write(`go nodes ${nodes}\n`);
