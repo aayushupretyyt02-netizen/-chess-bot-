@@ -1,32 +1,34 @@
-# Stage 1: Use a Node.js base image
+# Use Node.js base image
 FROM node:20-slim
 
-# Set working directory
+# Set the working directory inside the container
 WORKDIR /usr/src/app
 
-# Install wget and tar
-RUN apt-get update && apt-get install -y --no-install-recommends wget tar && \
-    rm -rf /var/lib/apt/lists/*
+# Install necessary utilities
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    wget \
+    tar \
+    && rm -rf /var/lib/apt/lists/*
 
-# Download official Stockfish Linux tar.gz (adjust version if needed)
-RUN wget -q https://stockfishchess.org/files/stockfish-15.1-linux-x64-avx2.zip -O stockfish.zip && \
-    apt-get install -y unzip && \
-    unzip stockfish.zip && \
-    chmod +x stockfish-*-linux-x64-avx2/stockfish && \
-    mv stockfish-*-linux-x64-avx2/stockfish ./stockfish-linux && \
-    rm -rf stockfish.zip stockfish-*-linux-x64-avx2
+# Download and extract Stockfish binary
+RUN wget -q "https://github.com/official-stockfish/Stockfish/releases/latest/download/stockfish-ubuntu-x86-64-avx2.tar" -O stockfish.tar && \
+    tar -xf stockfish.tar && \
+    mv stockfish-*-linux-x86-64-avx2/stockfish ./stockfish-linux && \
+    chmod +x ./stockfish-linux && \
+    rm -rf stockfish.tar stockfish-*-linux-x86-64-avx2
 
-# Copy package.json and package-lock.json
+# Copy package.json and package-lock.json (if available)
 COPY package*.json ./
 
-# Install Node dependencies
+# Install Node.js dependencies
 RUN npm install
 
-# Copy rest of app
+# Copy the rest of your application code into the container
 COPY . .
 
-# Expose port
+# Expose the port your app runs on
 EXPOSE 3000
 
-# Run server
+# Command to run your application
 CMD ["node", "server.js"]
