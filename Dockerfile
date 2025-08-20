@@ -1,3 +1,7 @@
+res.setHeader("Access-Control-Allow-Origin", "*");
+res.setHeader("Access-Control-Allow-Methods", "POST");
+res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
 # Use Node.js official slim image
 FROM node:20-slim
 
@@ -27,3 +31,4 @@ EXPOSE 3000
 
 # Start your app
 CMD ["node", "server.js"]
+
