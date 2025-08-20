@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends wget && \
     rm -rf /var/lib/apt/lists/*
 
 # Download Stockfish from Mediafire, ignore certificate, and set executable
-RUN wget --no-check-certificate "https://download1509.mediafire.com/d0w6s1etxrsgLI3J9FrCPiJrCaCCdFfS9KwuviwXPQaBR9Ax0itdU8G87dBllmb0vhlo-ni9OsxIGpiqfTmUoj3YlcjG1Kskodf-TKPPicAYGPOlXz8IrjUyOfRet9khO7wy35U5k1NhTZZP8J1PgHmHK4X33plL_5Ra3Km8K4qneg/yatywf3vxch7b87/stockfish-ubuntu-x86-64-avx2" -O stockfish-linux && \
+RUN wget --no-check-certificate "https://download1509.mediafire.com/39emeh0ivbxgG--9pit8z4b1vUCAMMJD74vBJoi3HlDwWObtsONOKohCK9XlWpc7YWW_aDdM5tjviU8cmiwoP71lHJ7_YSniwMBvUQiOCgwT8yFyn7MGXLnknVpmdBRXnHVCDT2xuQ6m91YhSe7WipDVdksNJRk82PTMmyRbXUWfTw/yatywf3vxch7b87/stockfish-ubuntu-x86-64-avx2" -O stockfish-linux && \
     chmod +x stockfish-linux
 
 # Copy Node.js dependencies
@@ -23,3 +23,4 @@ EXPOSE 10000
 
 # Run server
 CMD ["node", "server.js"]
+
