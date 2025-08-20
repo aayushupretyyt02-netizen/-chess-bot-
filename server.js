@@ -1,7 +1,6 @@
-// server.js (Final Version)
 const express = require("express");
 const cors = require("cors");
-const { spawn } = require("child_process");
+const { spawn, execSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 
@@ -16,6 +15,15 @@ const LOCAL_EXE = path.join(__dirname, "stockfish-linux");
 const STOCKFISH_PATH = fs.existsSync(LOCAL_EXE) ? LOCAL_EXE : "stockfish";
 
 console.log("Using engine at:", STOCKFISH_PATH);
+
+// --- Validate Stockfish binary ---
+try {
+  const version = execSync(`${STOCKFISH_PATH} -v`).toString();
+  console.log("Stockfish version:", version.trim());
+} catch (err) {
+  console.error("Stockfish binary is invalid or not executable!", err);
+  process.exit(1); // Stop server to avoid repeated 500 errors
+}
 
 // --- Helper: clamp elo to engine limits ---
 function clampElo(elo) {
@@ -56,8 +64,7 @@ app.post("/best-move", (req, res) => {
   const safeRespond = (status, payload) => {
     if (responded) return;
     responded = true;
-    try { res.status(status).json(payload); }
-    catch (_) {}
+    try { res.status(status).json(payload); } catch (_) {}
     try { engine.kill(); } catch (_) {}
   };
 
@@ -107,6 +114,7 @@ app.post("/best-move", (req, res) => {
   });
 });
 
+// --- Health check endpoint ---
 app.get("/", (_, res) => {
   res.send("✅ Chess bot API running");
 });
