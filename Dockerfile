@@ -1,19 +1,25 @@
 FROM node:20-slim
 WORKDIR /usr/src/app
 
-# Install bash (required for server scripts)
-RUN apt-get update && apt-get install -y --no-install-recommends bash && rm -rf /var/lib/apt/lists/*
+# Install necessary tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    bash \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy Stockfish binary from your Drive download folder
-# (maan ke chalo tumne local folder me download karke rakha hai)
-COPY stockfish-ubuntu-x86-64-avx2/stockfish ./stockfish-linux
-RUN chmod +x ./stockfish-linux
+# Download Stockfish binary from Google Drive
+RUN curl -c /tmp/cookies "https://drive.google.com/uc?export=download&id=1TKTUccmC1ubinn4X9UBScv2pEjFlNhL1" > /dev/null && \
+    curl -Lb /tmp/cookies "https://drive.google.com/uc?export=download&confirm=$(awk '/download/ {print $NF}' /tmp/cookies)id=1TKTUccmC1ubinn4X9UBScv2pEjFlNhL1" -o stockfish.tar && \
+    tar -xvf stockfish.tar && \
+    mv stockfish-*/stockfish ./stockfish-linux && \
+    chmod +x ./stockfish-linux && \
+    rm -rf stockfish.tar stockfish-*/ /tmp/cookies
 
-# Copy Node.js dependencies and install
+# Copy package.json and install dependencies
 COPY package*.json ./
 RUN npm install
 
-# Copy the rest of your app
+# Copy the rest of the application code
 COPY . .
 
 EXPOSE 3000
