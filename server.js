@@ -1,6 +1,6 @@
 // server.js
 const express = require("express");
-const cors = require("cors"); // YEH LINE SABSE ZAROORI HAI, iske na hone se error aa raha tha.
+const cors = require("cors");
 const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
@@ -12,7 +12,6 @@ app.use(cors({ origin: true, credentials: false }));
 app.use(express.json());
 
 // --- Stockfish path resolution ---
-// Path updated to point to the Linux binary we will set up in the Dockerfile.
 const LOCAL_EXE = path.join(__dirname, "stockfish-linux");
 const STOCKFISH_PATH = process.env.STOCKFISH_PATH
   ? process.env.STOCKFISH_PATH
@@ -60,10 +59,18 @@ app.post("/best-move", (req, res) => {
     try { engine.kill(); } catch (_) {}
   };
 
-  // Hard timeout so request never hangs
+  // --- UPDATED TIMEOUT LOGIC ---
+  // Agar depth ya nodes ka istemal ho raha hai, to 60 second ka lamba timeout rakhein.
+  // Varna movetime ke hisab se timeout rakhein.
+  const useFixedTimeout = depth || nodes;
+  const timeoutDuration = useFixedTimeout
+    ? 60000 // 60-second generous timeout for depth/nodes mode
+    : Math.max(1500, Number(movetime) + 2500); // Original logic for movetime mode
+
   const killTimer = setTimeout(() => {
-    safeRespond(504, { error: "Engine timeout", info: infoLines });
-  }, Math.max(1500, Number(movetime) + 2500)); // movetime + cushion
+    safeRespond(504, { error: `Engine timeout after ${timeoutDuration / 1000}s`, info: infoLines });
+  }, timeoutDuration);
+
 
   // Collect stdout lines
   engine.stdout.on("data", (chunk) => {
@@ -129,4 +136,3 @@ const PORT = process.env.PORT || 3000; // Use PORT from environment variable for
 app.listen(PORT, () => {
   console.log(`✅ Chess bot API running on http://localhost:${PORT}`);
 });
-
