@@ -129,3 +129,4 @@ const PORT = process.env.PORT || 3000; // Use PORT from environment variable for
 app.listen(PORT, () => {
   console.log(`✅ Chess bot API running on http://localhost:${PORT}`);
 });
+
