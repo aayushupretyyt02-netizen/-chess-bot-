@@ -1,51 +1,24 @@
+// server.js
 const express = require("express");
+const cors = require("cors"); // YEH LINE SABSE ZAROORI HAI, iske na hone se error aa raha tha.
 const { spawn } = require("child_process");
+const path = require("path");
+const fs = require("fs");
+
 const app = express();
-app.use(express.json());
-
-app.use((req, res, next) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-    next();
-});
-
-// routes yahan define karo
-app.post("/best-move", (req, res) => {
-    const { fen, movetime } = req.body;
-    const engine = spawn("./stockfish-linux");
-    engine.stdin.write(`position fen ${fen}\n`);
-    engine.stdin.write(`go movetime ${movetime || 1000}\n`);
-    engine.stdout.on("data", (data) => {
-        const match = data.toString().match(/bestmove\s([a-h][1-8][a-h][1-8][qrbn]?)/);
-        if (match) {
-            res.json({ bestmove: match[1] });
-            engine.kill();
-        }
-    });
-});
-
-app.listen(process.env.PORT || 3000, () => console.log("Server running"));
-
 
 // --- CORS + JSON ---
 app.use(cors({ origin: true, credentials: false }));
 app.use(express.json());
 
 // --- Stockfish path resolution ---
+// Path updated to point to the Linux binary we will set up in the Dockerfile.
 const LOCAL_EXE = path.join(__dirname, "stockfish-linux");
-const STOCKFISH_PATH = fs.existsSync(LOCAL_EXE) ? LOCAL_EXE : "stockfish";
+const STOCKFISH_PATH = process.env.STOCKFISH_PATH
+  ? process.env.STOCKFISH_PATH
+  : (fs.existsSync(LOCAL_EXE) ? LOCAL_EXE : "stockfish");
 
 console.log("Using engine at:", STOCKFISH_PATH);
-
-// --- Validate Stockfish binary ---
-try {
-  const version = execSync(`${STOCKFISH_PATH} -v`).toString();
-  console.log("Stockfish version:", version.trim());
-} catch (err) {
-  console.error("Stockfish binary is invalid or not executable!", err);
-  process.exit(1); // Stop server to avoid repeated 500 errors
-}
 
 // --- Helper: clamp elo to engine limits ---
 function clampElo(elo) {
@@ -57,10 +30,6 @@ function clampElo(elo) {
 // --- Create and prime engine ---
 function createEngine(elo = 1400) {
   const engine = spawn(STOCKFISH_PATH, [], { stdio: "pipe" });
-
-  engine.on("error", (err) => {
-    console.error("Failed to start Stockfish process. Spawn error:", err);
-  });
 
   engine.stdin.write("uci\n");
   engine.stdin.write("setoption name UCI_LimitStrength value true\n");
@@ -86,25 +55,34 @@ app.post("/best-move", (req, res) => {
   const safeRespond = (status, payload) => {
     if (responded) return;
     responded = true;
-    try { res.status(status).json(payload); } catch (_) {}
+    try { res.status(status).json(payload); }
+    catch (_) {}
     try { engine.kill(); } catch (_) {}
   };
 
+  // Hard timeout so request never hangs
   const killTimer = setTimeout(() => {
     safeRespond(504, { error: "Engine timeout", info: infoLines });
-  }, Math.max(1500, Number(movetime) + 2500));
+  }, Math.max(1500, Number(movetime) + 2500)); // movetime + cushion
 
+  // Collect stdout lines
   engine.stdout.on("data", (chunk) => {
     buffer += chunk.toString();
     const lines = buffer.split(/\r?\n/);
-    buffer = lines.pop();
+    buffer = lines.pop(); // last partial line stays in buffer
 
     for (const line of lines) {
       if (!line.trim()) continue;
+      // Debug log
       console.log("Engine:", line);
       if (line.startsWith("info")) infoLines.push(line);
 
+      if (line.startsWith("uciok")) {
+        // ready later handled by 'isready'
+      }
+
       if (line.startsWith("readyok")) {
+        // Once ready, send position + go
         engine.stdin.write(`position fen ${fen}\n`);
         if (nodes) {
           engine.stdin.write(`go nodes ${nodes}\n`);
@@ -116,8 +94,9 @@ app.post("/best-move", (req, res) => {
       }
 
       if (line.startsWith("bestmove")) {
+        // Format: "bestmove e7e6 ponder d2d4"
         const parts = line.split(/\s+/);
-        const bestmove = parts[1];
+        const bestmove = parts[1]; // e7e6 or e7e8q etc.
         clearTimeout(killTimer);
         safeRespond(200, { bestmove, info: infoLines });
       }
@@ -125,7 +104,13 @@ app.post("/best-move", (req, res) => {
   });
 
   engine.stderr?.on("data", (e) => {
-    console.error("Engine STDERR:", e.toString());
+    console.error("Engine ERR:", e.toString());
+  });
+
+  engine.on("error", (err) => {
+    console.error("Spawn error:", err);
+    clearTimeout(killTimer);
+    safeRespond(500, { error: "Failed to start Stockfish", details: String(err) });
   });
 
   engine.on("close", (code) => {
@@ -136,15 +121,11 @@ app.post("/best-move", (req, res) => {
   });
 });
 
-// --- Health check endpoint ---
 app.get("/", (_, res) => {
   res.send("✅ Chess bot API running");
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000; // Use PORT from environment variable for Render
 app.listen(PORT, () => {
   console.log(`✅ Chess bot API running on http://localhost:${PORT}`);
 });
-
-
-
